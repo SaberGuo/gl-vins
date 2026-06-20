@@ -137,6 +137,24 @@ Hybrid 结果详见 [docs/results_hybrid_klt_lightglue_euroc_mh01_wsl20.md](docs
 C++ 内部桥接详见 [docs/cpp_featuretracker_lightglue_recovery_bridge.md](docs/cpp_featuretracker_lightglue_recovery_bridge.md)。
 C++ candidate node 与 fake-grid 压测详见 [docs/results_cpp_recovery_bridge_euroc_mh01_wsl20.md](docs/results_cpp_recovery_bridge_euroc_mh01_wsl20.md)。
 
+## Degradation-Aware Recovery
+
+针对高速运动、运动模糊和光强突变，本工程不把 LightGlue 作为全量 frontend 替代，而是扩展 `FeatureTracker` health trigger：
+
+- 高速：用成功 KLT tracks 的平均像素位移 `mean_flow` 触发 recovery request。
+- 模糊：用 Laplacian variance `blur_score` 识别低纹理/运动模糊退化。
+- 光强突变：用相邻帧灰度均值差 `brightness_delta` 识别曝光变化。
+
+新增参数默认关闭，避免改变已记录实验：
+
+```bash
+RECOVERY_REQUEST_MAX_MEAN_FLOW=35
+RECOVERY_REQUEST_MIN_BLUR_SCORE=20
+RECOVERY_REQUEST_BRIGHTNESS_DELTA=30
+```
+
+详细计划见 [docs/degradation_aware_recovery_plan.md](docs/degradation_aware_recovery_plan.md)，sweep 脚本见 [scripts/wsl20/run_degradation_recovery_sweep.sh](scripts/wsl20/run_degradation_recovery_sweep.sh)。
+
 ## VINS-Fusion 联调路线
 
 推荐保留 VINS-Fusion 后端和原始 C++ frontend 主路径不动：
@@ -169,5 +187,7 @@ C++ candidate node 与 fake-grid 压测详见 [docs/results_cpp_recovery_bridge_
 - [x] 安装或 vendor ONNX Runtime C++，准备 SuperPoint/LightGlue ONNX 模型，接入真实 LightGlue ONNX backend。
 - [x] 把 ONNX recovery 从固定频率发布改为 `FeatureTracker` health-triggered request，并按 lost-track proximity 重排候选。
 - [ ] 在更难 EuRoC 序列上重跑 request-driven ONNX recovery，并加入几何一致性过滤/更保守接纳策略。
+- [x] 为高速运动、运动模糊和光强突变加入退化感知 request trigger 与实验计划。
+- [ ] 基于 `run_degradation_recovery_sweep.sh` 跑 MH_04/MH_05/V1_03/V2_03 并调参。
 - [ ] 加入 ORB/KLT baseline 的相同统计导出。
 - [ ] 加入 TUM-VI fisheye undistortion/camera model 处理。

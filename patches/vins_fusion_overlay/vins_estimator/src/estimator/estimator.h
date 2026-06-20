@@ -53,6 +53,7 @@ class Estimator
     void configureRecoveryBridge(bool enable, int max_recoveries, double time_tolerance,
                                  double prev_match_radius, double min_dist_ratio);
     void configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms);
+    void configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta);
     void setRecoveryRequestCallback(std::function<void(double,
                                                        const vector<cv::Point2f> &,
                                                        const vector<int> &,

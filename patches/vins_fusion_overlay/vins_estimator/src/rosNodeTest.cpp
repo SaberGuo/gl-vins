@@ -310,6 +310,9 @@ int main(int argc, char **argv)
     int recovery_request_min_tracks = 80;
     double recovery_request_lost_ratio = 0.35;
     double recovery_request_timeout_ms = 0.0;
+    double recovery_request_max_mean_flow = 0.0;
+    double recovery_request_min_blur_score = 0.0;
+    double recovery_request_brightness_delta = 0.0;
     n.param("external_feature_only", external_feature_only, false);
     n.param("enable_lightglue_recovery_bridge", enable_lightglue_recovery_bridge, false);
     n.param("recovery_max_cnt", recovery_max_cnt, 30);
@@ -319,6 +322,9 @@ int main(int argc, char **argv)
     n.param("recovery_request_min_tracks", recovery_request_min_tracks, 80);
     n.param("recovery_request_lost_ratio", recovery_request_lost_ratio, 0.35);
     n.param("recovery_request_timeout_ms", recovery_request_timeout_ms, 0.0);
+    n.param("recovery_request_max_mean_flow", recovery_request_max_mean_flow, 0.0);
+    n.param("recovery_request_min_blur_score", recovery_request_min_blur_score, 0.0);
+    n.param("recovery_request_brightness_delta", recovery_request_brightness_delta, 0.0);
     n.param("recovery_image_delay_ms", recovery_image_delay_ms, 0.0);
     estimator.configureRecoveryBridge(enable_lightglue_recovery_bridge,
                                       recovery_max_cnt,
@@ -328,6 +334,9 @@ int main(int argc, char **argv)
     estimator.configureRecoveryRequest(recovery_request_min_tracks,
                                        recovery_request_lost_ratio,
                                        recovery_request_timeout_ms);
+    estimator.configureRecoveryDegradation(recovery_request_max_mean_flow,
+                                           recovery_request_min_blur_score,
+                                           recovery_request_brightness_delta);
     if (external_feature_only)
         ROS_WARN("external_feature_only enabled: estimator consumes /feature_tracker/feature and does not run internal image frontend");
     if (recovery_image_delay_ms > 0)

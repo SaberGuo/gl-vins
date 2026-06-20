@@ -11,6 +11,8 @@
 
 #include "feature_tracker.h"
 
+#include <algorithm>
+
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
 {
     const int BORDER_SIZE = 1;
@@ -45,6 +47,25 @@ void reduceVector(vector<int> &v, vector<uchar> status)
     v.resize(j);
 }
 
+static double imageMeanIntensity(const cv::Mat &img)
+{
+    if (img.empty())
+        return 0.0;
+    return cv::mean(img)[0];
+}
+
+static double imageBlurScore(const cv::Mat &img)
+{
+    if (img.empty())
+        return 0.0;
+    cv::Mat lap;
+    cv::Laplacian(img, lap, CV_64F);
+    cv::Scalar mean;
+    cv::Scalar stddev;
+    cv::meanStdDev(lap, mean, stddev);
+    return stddev.val[0] * stddev.val[0];
+}
+
 FeatureTracker::FeatureTracker()
 {
     stereo_cam = 0;
@@ -58,6 +79,12 @@ FeatureTracker::FeatureTracker()
     recovery_request_min_tracks = 80;
     recovery_request_lost_ratio = 0.35;
     recovery_request_timeout_ms = 0.0;
+    recovery_request_max_mean_flow = 0.0;
+    recovery_request_min_blur_score = 0.0;
+    recovery_request_brightness_delta = 0.0;
+    prev_mean_intensity = 0.0;
+    prev_blur_score = 0.0;
+    has_prev_image_quality = false;
     recovery_candidate_time = -1.0;
 }
 
@@ -116,6 +143,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             clahe->apply(rightImg, rightImg);
     }
     */
+    double cur_mean_intensity = imageMeanIntensity(cur_img);
+    double cur_blur_score = imageBlurScore(cur_img);
     cur_pts.clear();
 
     if (prev_pts.size() > 0)
@@ -184,9 +213,25 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                     lost_track_cnt.push_back(raw_track_cnt[i]);
                 }
             }
+            double flow_sum = 0.0;
+            int flow_count = 0;
+            for (size_t i = 0; i < status.size() && i < raw_prev_pts.size() && i < cur_pts.size(); i++)
+            {
+                if (!status[i])
+                    continue;
+                flow_sum += ::distance(raw_prev_pts[i], cur_pts[i]);
+                flow_count++;
+            }
+            double mean_flow = flow_count > 0 ? flow_sum / static_cast<double>(flow_count) : 0.0;
+            double brightness_delta = has_prev_image_quality ? fabs(cur_mean_intensity - prev_mean_intensity) : 0.0;
             double lost_ratio = status.empty() ? 0.0 : static_cast<double>(lost_prev_pts.size()) / static_cast<double>(status.size());
+            bool track_count_bad = active_num < recovery_request_min_tracks;
+            bool lost_ratio_bad = lost_ratio >= recovery_request_lost_ratio;
+            bool high_speed_bad = recovery_request_max_mean_flow > 0.0 && mean_flow >= recovery_request_max_mean_flow;
+            bool blur_bad = recovery_request_min_blur_score > 0.0 && cur_blur_score <= recovery_request_min_blur_score;
+            bool brightness_bad = recovery_request_brightness_delta > 0.0 && brightness_delta >= recovery_request_brightness_delta;
             bool should_request = !lost_prev_pts.empty() &&
-                                  (active_num < recovery_request_min_tracks || lost_ratio >= recovery_request_lost_ratio);
+                                  (track_count_bad || lost_ratio_bad || high_speed_bad || blur_bad || brightness_bad);
             if (should_request)
             {
                 {
@@ -202,7 +247,18 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                                                  return recovery_candidate_time >= 0 &&
                                                         fabs(recovery_candidate_time - cur_time) <= recovery_time_tolerance;
                                              });
-                ROS_DEBUG("recovery request active=%d lost=%lu ratio=%.3f", active_num, lost_prev_pts.size(), lost_ratio);
+                ROS_WARN("recovery request health active=%d lost=%lu ratio=%.3f flow=%.2f blur=%.1f brightness_delta=%.1f reasons=%s%s%s%s%s",
+                         active_num,
+                         lost_prev_pts.size(),
+                         lost_ratio,
+                         mean_flow,
+                         cur_blur_score,
+                         brightness_delta,
+                         track_count_bad ? "track_count " : "",
+                         lost_ratio_bad ? "lost_ratio " : "",
+                         high_speed_bad ? "high_speed " : "",
+                         blur_bad ? "blur " : "",
+                         brightness_bad ? "brightness " : "");
             }
         }
         reduceVector(prev_pts, status);
@@ -306,6 +362,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     prev_un_pts = cur_un_pts;
     prev_un_pts_map = cur_un_pts_map;
     prev_time = cur_time;
+    prev_mean_intensity = cur_mean_intensity;
+    prev_blur_score = cur_blur_score;
+    has_prev_image_quality = true;
     hasPrediction = false;
 
     prevLeftPtsMap.clear();
@@ -600,6 +659,17 @@ void FeatureTracker::configureRecoveryRequest(int min_tracks, double lost_ratio,
              recovery_request_min_tracks,
              recovery_request_lost_ratio,
              recovery_request_timeout_ms);
+}
+
+void FeatureTracker::configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta)
+{
+    recovery_request_max_mean_flow = std::max(0.0, max_mean_flow);
+    recovery_request_min_blur_score = std::max(0.0, min_blur_score);
+    recovery_request_brightness_delta = std::max(0.0, brightness_delta);
+    ROS_WARN("LightGlue recovery degradation triggers: max_mean_flow=%.2f min_blur=%.1f brightness_delta=%.1f",
+             recovery_request_max_mean_flow,
+             recovery_request_min_blur_score,
+             recovery_request_brightness_delta);
 }
 
 void FeatureTracker::setRecoveryRequestCallback(std::function<void(double,

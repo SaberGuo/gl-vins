@@ -207,6 +207,11 @@ void Estimator::configureRecoveryRequest(int min_tracks, double lost_ratio, doub
     featureTracker.configureRecoveryRequest(min_tracks, lost_ratio, timeout_ms);
 }
 
+void Estimator::configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta)
+{
+    featureTracker.configureRecoveryDegradation(max_mean_flow, min_blur_score, brightness_delta);
+}
+
 void Estimator::setRecoveryRequestCallback(std::function<void(double,
                                                               const vector<cv::Point2f> &,
                                                               const vector<int> &,

@@ -67,6 +67,7 @@ public:
     void configureRecoveryBridge(bool enable, int max_recoveries, double time_tolerance,
                                  double prev_match_radius, double min_dist_ratio);
     void configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms);
+    void configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta);
     void setRecoveryRequestCallback(std::function<void(double,
                                                        const vector<cv::Point2f> &,
                                                        const vector<int> &,
@@ -111,6 +112,12 @@ public:
     int recovery_request_min_tracks;
     double recovery_request_lost_ratio;
     double recovery_request_timeout_ms;
+    double recovery_request_max_mean_flow;
+    double recovery_request_min_blur_score;
+    double recovery_request_brightness_delta;
+    double prev_mean_intensity;
+    double prev_blur_score;
+    bool has_prev_image_quality;
     double recovery_candidate_time;
     vector<RecoveryCandidate> recovery_candidates;
     std::mutex recovery_mutex;

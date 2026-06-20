@@ -1,0 +1,25 @@
+# Reference parameters for degradation-aware LightGlue recovery experiments.
+# These values are intentionally conservative and should be tuned from full-bag metrics.
+
+recovery:
+  max_cnt: 3
+  prev_match_radius: 14.0
+  min_dist_ratio: 0.25
+  time_tolerance: 0.05
+
+request:
+  min_tracks: 120
+  lost_ratio: 0.10
+  timeout_ms: 80
+  max_mean_flow: 35.0
+  min_blur_score: 20.0
+  brightness_delta: 30.0
+
+lightglue:
+  request_only: 1
+  request_prev_radius: 14.0
+  request_distance_penalty: 0.04
+  max_candidates: 40
+  min_score: 0.0
+  model_width: 376
+  model_height: 240

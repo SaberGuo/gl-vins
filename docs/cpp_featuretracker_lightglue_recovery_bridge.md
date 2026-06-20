@@ -46,6 +46,9 @@ _recovery_min_dist_ratio:=0.5
 _recovery_request_min_tracks:=120
 _recovery_request_lost_ratio:=0.10
 _recovery_request_timeout_ms:=80
+_recovery_request_max_mean_flow:=35
+_recovery_request_min_blur_score:=20
+_recovery_request_brightness_delta:=30
 ```
 
 New subscribed topic when enabled:
@@ -94,9 +97,12 @@ Request rule inside `FeatureTracker`:
 
 1. Run the original KLT step first.
 2. Compute active track count and lost-track ratio after KLT status filtering.
-3. If active tracks fall below `_recovery_request_min_tracks` or lost ratio exceeds `_recovery_request_lost_ratio`, publish a recovery request containing raw-pixel locations of lost previous-frame tracks.
-4. Wait up to `_recovery_request_timeout_ms` for candidates.
-5. Apply accepted candidates once and clear them so stale recovery matches cannot be reused by later frames.
+3. Compute degradation signals: mean successful KLT flow, current-frame blur score, and brightness jump from the previous frame.
+4. If active tracks fall below `_recovery_request_min_tracks`, lost ratio exceeds `_recovery_request_lost_ratio`, mean flow exceeds `_recovery_request_max_mean_flow`, blur score falls below `_recovery_request_min_blur_score`, or brightness jump exceeds `_recovery_request_brightness_delta`, publish a recovery request containing raw-pixel locations of lost previous-frame tracks.
+5. Wait up to `_recovery_request_timeout_ms` for candidates.
+6. Apply accepted candidates once and clear them so stale recovery matches cannot be reused by later frames.
+
+The degradation thresholds default to `0.0`, which disables those triggers and preserves the earlier count/lost-ratio-only behavior.
 
 ## Build Verification
 
