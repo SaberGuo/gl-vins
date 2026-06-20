@@ -1,0 +1,25 @@
+name: euroc
+description: EuRoC MAV visual-inertial dataset.
+layout:
+  camera_dir_template: "{sequence_root}/{camera}/data"
+  timestamp_csv_template: "{sequence_root}/{camera}/data.csv"
+  imu_csv_template: "{sequence_root}/imu0/data.csv"
+  groundtruth_csv_template: "{sequence_root}/state_groundtruth_estimate0/data.csv"
+image:
+  extension: ".png"
+  timestamp_unit: nanoseconds
+cameras:
+  - cam0
+  - cam1
+recommended_sequences:
+  - MH_01_easy
+  - MH_02_easy
+  - MH_03_medium
+  - MH_04_difficult
+  - MH_05_difficult
+  - V1_01_easy
+  - V1_02_medium
+  - V1_03_difficult
+notes:
+  - "sequence_root should point to the mav0 directory, e.g. D:/datasets/EuRoC/MH_01_easy/mav0"
+  - "Use cam0 first for monocular frontend smoke tests."

@@ -1,0 +1,17 @@
+name: euroc_mh01_lightglue
+dataset_config: configs/datasets/euroc.yaml
+sequence_name: MH_01_easy
+camera: cam0
+frontend:
+  extractor: superpoint
+  matcher: lightglue
+  max_num_keypoints: 2048
+  match_confidence: 0.1
+  resize_long_edge: 1024
+runtime:
+  device: auto
+  max_pairs: 500
+outputs:
+  run_dir: runs/euroc_mh01_lightglue
+  matches_csv: runs/euroc_mh01_lightglue/matches.csv
+  vins_tracks_csv: runs/euroc_mh01_lightglue/vins_tracks.csv

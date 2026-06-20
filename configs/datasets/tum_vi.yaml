@@ -1,0 +1,21 @@
+name: tum_vi
+description: TUM Visual-Inertial dataset.
+layout:
+  camera_dir_template: "{sequence_root}/mav0/{camera}/data"
+  timestamp_csv_template: "{sequence_root}/mav0/{camera}/data.csv"
+  imu_csv_template: "{sequence_root}/mav0/imu0/data.csv"
+  groundtruth_csv_template: "{sequence_root}/mav0/mocap0/data.csv"
+image:
+  extension: ".png"
+  timestamp_unit: nanoseconds
+cameras:
+  - cam0
+  - cam1
+recommended_sequences:
+  - dataset-room1_512_16
+  - dataset-room2_512_16
+  - dataset-corridor1_512_16
+  - dataset-magistrale1_512_16
+notes:
+  - "sequence_root should point to the extracted sequence directory."
+  - "TUM-VI fisheye camera handling needs explicit undistortion before VINS backend use."
