@@ -63,12 +63,14 @@ public:
         pnh.param<double>("request_prev_radius", request_prev_radius_, 12.0);
         pnh.param<double>("request_distance_penalty", request_distance_penalty_, 0.03);
         pnh.param<double>("image_cache_sec", image_cache_sec_, 5.0);
+        pnh.param<double>("max_inference_ms", max_inference_ms_, 0.0);
 
         publish_every_n_ = std::max(1, publish_every_n_);
         fake_grid_step_ = std::max(2, fake_grid_step_);
         max_candidates_ = std::max(0, max_candidates_);
         model_width_ = std::max(0, model_width_);
         model_height_ = std::max(0, model_height_);
+        max_inference_ms_ = std::max(0.0, max_inference_ms_);
 
         pub_ = nh.advertise<sensor_msgs::PointCloud>(output_topic_, 50);
         sub_ = nh.subscribe(image_topic_, 50, &LightGlueRecoveryCandidateNode::imageCallback, this);
@@ -81,6 +83,8 @@ public:
                  use_cuda_ ? 1 : 0, model_width_, model_height_, min_score_, max_candidates_);
         ROS_WARN("lightglue_recovery_candidate_node request_only=%d request_prev_radius=%.1f request_time_tol=%.3f",
                  request_only_ ? 1 : 0, request_prev_radius_, request_time_tolerance_);
+        ROS_WARN("lightglue_recovery_candidate_node max_inference_ms=%.1f image_cache_sec=%.1f",
+                 max_inference_ms_, image_cache_sec_);
 
         if (backend_ == "onnx")
         {
@@ -305,6 +309,12 @@ private:
                                              input_name_ptrs_.data(), &input_tensor, 1,
                                              output_name_ptrs_.data(), output_name_ptrs_.size());
             const double dt_ms = (ros::Time::now().toSec() - t0) * 1000.0;
+            if (max_inference_ms_ > 0.0 && dt_ms > max_inference_ms_)
+            {
+                ROS_WARN_THROTTLE(1.0, "drop ONNX recovery candidates at %.6f: inference %.1f ms exceeded budget %.1f ms",
+                                  header.stamp.toSec(), dt_ms, max_inference_ms_);
+                return;
+            }
             if (outputs.size() < 3)
             {
                 ROS_WARN("ONNX output count too small: %lu", outputs.size());
@@ -568,6 +578,7 @@ private:
     double request_prev_radius_ = 12.0;
     double request_distance_penalty_ = 0.03;
     double image_cache_sec_ = 5.0;
+    double max_inference_ms_ = 0.0;
     cv::Mat prev_img_;
     std::mutex cache_mutex_;
     std::map<double, cv::Mat> image_cache_;

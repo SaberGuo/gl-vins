@@ -66,7 +66,9 @@ public:
     void setPrediction(map<int, Eigen::Vector3d> &predictPts);
     void configureRecoveryBridge(bool enable, int max_recoveries, double time_tolerance,
                                  double prev_match_radius, double min_dist_ratio);
-    void configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms);
+    void configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms,
+                                  double cooldown_ms, int min_signal_count,
+                                  bool require_degradation_signal);
     void configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta);
     void configureRecoveryGeometry(double max_flow_error, int min_flow_tracks);
     void setRecoveryRequestCallback(std::function<void(double,
@@ -118,6 +120,10 @@ public:
     double recovery_request_max_mean_flow;
     double recovery_request_min_blur_score;
     double recovery_request_brightness_delta;
+    double recovery_request_cooldown_ms;
+    int recovery_request_min_signal_count;
+    bool recovery_request_require_degradation_signal;
+    double last_recovery_request_time;
     double recovery_max_flow_error;
     int recovery_min_flow_tracks;
     double prev_mean_intensity;

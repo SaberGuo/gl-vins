@@ -82,6 +82,10 @@ FeatureTracker::FeatureTracker()
     recovery_request_max_mean_flow = 0.0;
     recovery_request_min_blur_score = 0.0;
     recovery_request_brightness_delta = 0.0;
+    recovery_request_cooldown_ms = 0.0;
+    recovery_request_min_signal_count = 1;
+    recovery_request_require_degradation_signal = false;
+    last_recovery_request_time = -1.0;
     recovery_max_flow_error = 0.0;
     recovery_min_flow_tracks = 20;
     prev_mean_intensity = 0.0;
@@ -237,10 +241,22 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             bool high_speed_bad = recovery_request_max_mean_flow > 0.0 && mean_flow >= recovery_request_max_mean_flow;
             bool blur_bad = recovery_request_min_blur_score > 0.0 && cur_blur_score <= recovery_request_min_blur_score;
             bool brightness_bad = recovery_request_brightness_delta > 0.0 && brightness_delta >= recovery_request_brightness_delta;
+            int tracking_signal_count = (track_count_bad ? 1 : 0) + (lost_ratio_bad ? 1 : 0);
+            int degradation_signal_count = (high_speed_bad ? 1 : 0) + (blur_bad ? 1 : 0) + (brightness_bad ? 1 : 0);
+            int signal_count = tracking_signal_count + degradation_signal_count;
+            bool signal_count_ok = signal_count >= recovery_request_min_signal_count;
+            bool degradation_policy_ok = !recovery_request_require_degradation_signal ||
+                                         (tracking_signal_count > 0 && degradation_signal_count > 0);
+            bool cooldown_ok = recovery_request_cooldown_ms <= 0.0 ||
+                               last_recovery_request_time < 0.0 ||
+                               (cur_time - last_recovery_request_time) * 1000.0 >= recovery_request_cooldown_ms;
             bool should_request = !lost_prev_pts.empty() &&
-                                  (track_count_bad || lost_ratio_bad || high_speed_bad || blur_bad || brightness_bad);
+                                  signal_count_ok &&
+                                  degradation_policy_ok &&
+                                  cooldown_ok;
             if (should_request)
             {
+                last_recovery_request_time = cur_time;
                 {
                     std::lock_guard<std::mutex> lock(recovery_mutex);
                     recovery_candidate_time = -1.0;
@@ -670,15 +686,23 @@ void FeatureTracker::configureRecoveryBridge(bool enable, int max_recoveries, do
              recovery_min_dist_ratio);
 }
 
-void FeatureTracker::configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms)
+void FeatureTracker::configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms,
+                                              double cooldown_ms, int min_signal_count,
+                                              bool require_degradation_signal)
 {
     recovery_request_min_tracks = std::max(0, min_tracks);
     recovery_request_lost_ratio = std::max(0.0, lost_ratio);
     recovery_request_timeout_ms = std::max(0.0, timeout_ms);
-    ROS_WARN("LightGlue recovery request: min_tracks=%d lost_ratio=%.3f timeout=%.1fms",
+    recovery_request_cooldown_ms = std::max(0.0, cooldown_ms);
+    recovery_request_min_signal_count = std::max(1, min_signal_count);
+    recovery_request_require_degradation_signal = require_degradation_signal;
+    ROS_WARN("LightGlue recovery request: min_tracks=%d lost_ratio=%.3f timeout=%.1fms cooldown=%.1fms min_signals=%d require_degradation=%d",
              recovery_request_min_tracks,
              recovery_request_lost_ratio,
-             recovery_request_timeout_ms);
+             recovery_request_timeout_ms,
+             recovery_request_cooldown_ms,
+             recovery_request_min_signal_count,
+             recovery_request_require_degradation_signal ? 1 : 0);
 }
 
 void FeatureTracker::configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta)

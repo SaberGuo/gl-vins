@@ -202,9 +202,13 @@ void Estimator::configureRecoveryBridge(bool enable, int max_recoveries, double 
     featureTracker.configureRecoveryBridge(enable, max_recoveries, time_tolerance, prev_match_radius, min_dist_ratio);
 }
 
-void Estimator::configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms)
+void Estimator::configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms,
+                                         double cooldown_ms, int min_signal_count,
+                                         bool require_degradation_signal)
 {
-    featureTracker.configureRecoveryRequest(min_tracks, lost_ratio, timeout_ms);
+    featureTracker.configureRecoveryRequest(min_tracks, lost_ratio, timeout_ms,
+                                            cooldown_ms, min_signal_count,
+                                            require_degradation_signal);
 }
 
 void Estimator::configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta)

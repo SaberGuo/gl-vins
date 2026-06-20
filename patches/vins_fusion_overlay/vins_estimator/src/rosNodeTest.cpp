@@ -313,6 +313,9 @@ int main(int argc, char **argv)
     double recovery_request_max_mean_flow = 0.0;
     double recovery_request_min_blur_score = 0.0;
     double recovery_request_brightness_delta = 0.0;
+    double recovery_request_cooldown_ms = 0.0;
+    int recovery_request_min_signal_count = 1;
+    bool recovery_request_require_degradation_signal = false;
     double recovery_max_flow_error = 0.0;
     int recovery_min_flow_tracks = 20;
     n.param("external_feature_only", external_feature_only, false);
@@ -327,6 +330,9 @@ int main(int argc, char **argv)
     n.param("recovery_request_max_mean_flow", recovery_request_max_mean_flow, 0.0);
     n.param("recovery_request_min_blur_score", recovery_request_min_blur_score, 0.0);
     n.param("recovery_request_brightness_delta", recovery_request_brightness_delta, 0.0);
+    n.param("recovery_request_cooldown_ms", recovery_request_cooldown_ms, 0.0);
+    n.param("recovery_request_min_signal_count", recovery_request_min_signal_count, 1);
+    n.param("recovery_request_require_degradation_signal", recovery_request_require_degradation_signal, false);
     n.param("recovery_max_flow_error", recovery_max_flow_error, 0.0);
     n.param("recovery_min_flow_tracks", recovery_min_flow_tracks, 20);
     n.param("recovery_image_delay_ms", recovery_image_delay_ms, 0.0);
@@ -337,7 +343,10 @@ int main(int argc, char **argv)
                                       recovery_min_dist_ratio);
     estimator.configureRecoveryRequest(recovery_request_min_tracks,
                                        recovery_request_lost_ratio,
-                                       recovery_request_timeout_ms);
+                                       recovery_request_timeout_ms,
+                                       recovery_request_cooldown_ms,
+                                       recovery_request_min_signal_count,
+                                       recovery_request_require_degradation_signal);
     estimator.configureRecoveryDegradation(recovery_request_max_mean_flow,
                                            recovery_request_min_blur_score,
                                            recovery_request_brightness_delta);

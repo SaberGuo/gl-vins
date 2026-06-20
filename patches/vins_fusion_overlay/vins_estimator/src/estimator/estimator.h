@@ -52,7 +52,9 @@ class Estimator
     void inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
     void configureRecoveryBridge(bool enable, int max_recoveries, double time_tolerance,
                                  double prev_match_radius, double min_dist_ratio);
-    void configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms);
+    void configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms,
+                                  double cooldown_ms, int min_signal_count,
+                                  bool require_degradation_signal);
     void configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta);
     void configureRecoveryGeometry(double max_flow_error, int min_flow_tracks);
     void setRecoveryRequestCallback(std::function<void(double,
