@@ -68,6 +68,7 @@ public:
                                  double prev_match_radius, double min_dist_ratio);
     void configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms);
     void configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta);
+    void configureRecoveryGeometry(double max_flow_error, int min_flow_tracks);
     void setRecoveryRequestCallback(std::function<void(double,
                                                        const vector<cv::Point2f> &,
                                                        const vector<int> &,
@@ -76,7 +77,9 @@ public:
     int applyRecoveryCandidates(const vector<cv::Point2f> &raw_prev_pts,
                                 const vector<int> &raw_ids,
                                 const vector<int> &raw_track_cnt,
-                                const vector<uchar> &status);
+                                const vector<uchar> &status,
+                                const vector<cv::Point2f> &active_prev_pts,
+                                const vector<cv::Point2f> &active_flows);
     double distance(cv::Point2f &pt1, cv::Point2f &pt2);
     void removeOutliers(set<int> &removePtsIds);
     cv::Mat getTrackImage();
@@ -115,6 +118,8 @@ public:
     double recovery_request_max_mean_flow;
     double recovery_request_min_blur_score;
     double recovery_request_brightness_delta;
+    double recovery_max_flow_error;
+    int recovery_min_flow_tracks;
     double prev_mean_intensity;
     double prev_blur_score;
     bool has_prev_image_quality;

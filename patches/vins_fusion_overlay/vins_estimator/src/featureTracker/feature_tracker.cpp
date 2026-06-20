@@ -82,6 +82,8 @@ FeatureTracker::FeatureTracker()
     recovery_request_max_mean_flow = 0.0;
     recovery_request_min_blur_score = 0.0;
     recovery_request_brightness_delta = 0.0;
+    recovery_max_flow_error = 0.0;
+    recovery_min_flow_tracks = 20;
     prev_mean_intensity = 0.0;
     prev_blur_score = 0.0;
     has_prev_image_quality = false;
@@ -200,11 +202,18 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             vector<cv::Point2f> lost_prev_pts;
             vector<int> lost_ids;
             vector<int> lost_track_cnt;
+            vector<cv::Point2f> active_prev_pts;
+            vector<cv::Point2f> active_flows;
             for (size_t i = 0; i < status.size(); i++)
             {
                 if (status[i])
                 {
                     active_num++;
+                    if (i < raw_prev_pts.size() && i < cur_pts.size())
+                    {
+                        active_prev_pts.push_back(raw_prev_pts[i]);
+                        active_flows.push_back(cur_pts[i] - raw_prev_pts[i]);
+                    }
                 }
                 else if (i < raw_prev_pts.size())
                 {
@@ -215,11 +224,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             }
             double flow_sum = 0.0;
             int flow_count = 0;
-            for (size_t i = 0; i < status.size() && i < raw_prev_pts.size() && i < cur_pts.size(); i++)
+            for (size_t i = 0; i < active_flows.size(); i++)
             {
-                if (!status[i])
-                    continue;
-                flow_sum += ::distance(raw_prev_pts[i], cur_pts[i]);
+                flow_sum += sqrt(active_flows[i].x * active_flows[i].x + active_flows[i].y * active_flows[i].y);
                 flow_count++;
             }
             double mean_flow = flow_count > 0 ? flow_sum / static_cast<double>(flow_count) : 0.0;
@@ -265,7 +272,20 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         reduceVector(cur_pts, status);
         reduceVector(ids, status);
         reduceVector(track_cnt, status);
-        int recovered_num = applyRecoveryCandidates(raw_prev_pts, raw_ids, raw_track_cnt, status);
+        vector<cv::Point2f> active_prev_pts;
+        vector<cv::Point2f> active_flows;
+        size_t active_index = 0;
+        for (size_t i = 0; i < status.size() && i < raw_prev_pts.size(); i++)
+        {
+            if (status[i])
+            {
+                active_prev_pts.push_back(raw_prev_pts[i]);
+                if (active_index < cur_pts.size())
+                    active_flows.push_back(cur_pts[active_index] - raw_prev_pts[i]);
+                active_index++;
+            }
+        }
+        int recovered_num = applyRecoveryCandidates(raw_prev_pts, raw_ids, raw_track_cnt, status, active_prev_pts, active_flows);
         if (recovered_num > 0)
             ROS_WARN("LightGlue recovery bridge accepted %d tracks; active tracks now %lu", recovered_num, cur_pts.size());
         ROS_DEBUG("temporal optical flow costs: %fms", t_o.toc());
@@ -672,6 +692,15 @@ void FeatureTracker::configureRecoveryDegradation(double max_mean_flow, double m
              recovery_request_brightness_delta);
 }
 
+void FeatureTracker::configureRecoveryGeometry(double max_flow_error, int min_flow_tracks)
+{
+    recovery_max_flow_error = std::max(0.0, max_flow_error);
+    recovery_min_flow_tracks = std::max(0, min_flow_tracks);
+    ROS_WARN("LightGlue recovery geometry gate: max_flow_error=%.2f min_flow_tracks=%d",
+             recovery_max_flow_error,
+             recovery_min_flow_tracks);
+}
+
 void FeatureTracker::setRecoveryRequestCallback(std::function<void(double,
                                                                    const vector<cv::Point2f> &,
                                                                    const vector<int> &,
@@ -693,7 +722,9 @@ void FeatureTracker::setRecoveryCandidates(double timestamp, const vector<Recove
 int FeatureTracker::applyRecoveryCandidates(const vector<cv::Point2f> &raw_prev_pts,
                                             const vector<int> &raw_ids,
                                             const vector<int> &raw_track_cnt,
-                                            const vector<uchar> &status)
+                                            const vector<uchar> &status,
+                                            const vector<cv::Point2f> &active_prev_pts,
+                                            const vector<cv::Point2f> &active_flows)
 {
     if (!enable_recovery_bridge || recovery_max_cnt <= 0 || raw_prev_pts.empty())
         return 0;
@@ -737,6 +768,31 @@ int FeatureTracker::applyRecoveryCandidates(const vector<cv::Point2f> &raw_prev_
         }
         if (best_index < 0)
             continue;
+
+        if (recovery_max_flow_error > 0.0)
+        {
+            if (active_prev_pts.size() != active_flows.size())
+                continue;
+            cv::Point2f candidate_flow = candidate.cur_pt - candidate.prev_pt;
+            double local_radius = std::max(recovery_prev_match_radius * 4.0, static_cast<double>(MIN_DIST) * 2.0);
+            vector<double> flow_errors;
+            flow_errors.reserve(active_flows.size());
+            for (size_t i = 0; i < active_prev_pts.size(); i++)
+            {
+                if (::distance(active_prev_pts[i], candidate.prev_pt) > local_radius)
+                    continue;
+                cv::Point2f flow_delta = active_flows[i] - candidate_flow;
+                flow_errors.push_back(sqrt(flow_delta.x * flow_delta.x + flow_delta.y * flow_delta.y));
+            }
+            if (static_cast<int>(flow_errors.size()) < recovery_min_flow_tracks)
+                continue;
+            std::nth_element(flow_errors.begin(),
+                             flow_errors.begin() + flow_errors.size() / 2,
+                             flow_errors.end());
+            double median_flow_error = flow_errors[flow_errors.size() / 2];
+            if (median_flow_error > recovery_max_flow_error)
+                continue;
+        }
 
         bool too_close = false;
         double min_dist = MIN_DIST * recovery_min_dist_ratio;

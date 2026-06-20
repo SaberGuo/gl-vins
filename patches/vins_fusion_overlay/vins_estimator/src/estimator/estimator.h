@@ -54,6 +54,7 @@ class Estimator
                                  double prev_match_radius, double min_dist_ratio);
     void configureRecoveryRequest(int min_tracks, double lost_ratio, double timeout_ms);
     void configureRecoveryDegradation(double max_mean_flow, double min_blur_score, double brightness_delta);
+    void configureRecoveryGeometry(double max_flow_error, int min_flow_tracks);
     void setRecoveryRequestCallback(std::function<void(double,
                                                        const vector<cv::Point2f> &,
                                                        const vector<int> &,
