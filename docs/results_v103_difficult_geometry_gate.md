@@ -24,6 +24,8 @@ The new local KLT-flow geometry gate is useful as a safety filter. It reduced th
 | gate relaxed | `/home/gx/catkin_ws_vins/results/V1_03_difficult_cpp_recovery_onnx_20260620_181059` | 33 | 1064 | 1056 | 0.122095 | 0.224878 | Preserves coverage and nearly matches baseline |
 | cooldown + budget 60 ms | `/home/gx/catkin_ws_vins/results/V1_03_difficult_cpp_recovery_onnx_20260620_182702` | 1 | 1064 | 1056 | 0.121652 | 0.223755 | Request volume reduced from 966 to 23; full coverage; effectively baseline parity |
 | cooldown + budget 80 ms | `/home/gx/catkin_ws_vins/results/V1_03_difficult_cpp_recovery_onnx_20260620_182933` | 2 | 1064 | 1056 | 0.123107 | 0.227792 | Looser budget accepted slightly more but worsened ATE |
+| depletion hard filter | `/home/gx/catkin_ws_vins/results/V1_03_difficult_cpp_recovery_onnx_20260620_190817` | 1 | 1063 | 1056 | 0.123351 | 0.228246 | Grid prior with hard lost/active filter reduced candidates but worsened ATE |
+| depletion rank bonus | `/home/gx/catkin_ws_vins/results/V1_03_difficult_cpp_recovery_onnx_20260620_222056` | 2 | 1064 | 1056 | 0.123107 | 0.227792 | Rank-only grid prior preserved coverage but still worsened ATE |
 
 ## Geometry Gate Parameters
 
@@ -80,17 +82,30 @@ bash scripts/wsl20/run_vins_cpp_recovery_bridge_euroc.sh \
   /mnt/f/datasets/EuRoC_bags/vicon_room1/vicon_room1/V1_03_difficult/V1_03_difficult.bag
 ```
 
+The candidate node also supports an experimental image-region depletion prior. Recovery requests now carry both lost previous-frame points and active KLT previous-frame points. The candidate node can bin them into an image grid and boost or filter LightGlue candidates from locally depleted cells:
+
+```bash
+DEPLETION_GRID_COLS=8 \
+DEPLETION_GRID_ROWS=6 \
+DEPLETION_MIN_LOST=0 \
+DEPLETION_MIN_LOST_ACTIVE_RATIO=0 \
+DEPLETION_RANK_BONUS=0.2
+```
+
+On V1_03 this prior should stay experimental rather than default: hard filtering and rank-only boosting both worsened ATE relative to the 60 ms budget policy.
+
 ## Interpretation
 
 - No-gate recovery is worse than baseline because it injects thousands of visually plausible but VIO-inconsistent tracks.
 - A tight flow gate can improve RMSE, but current request frequency and ONNX inference latency reduce output coverage. This makes the result not yet comparable to full-rate VINS.
 - The relaxed flow gate is the best current engineering compromise: it preserves full output coverage and avoids the clear no-gate degradation, but it is only parity-level on V1_03.
 - Cooldown plus multi-signal triggering fixes the request-volume problem: V1_03 requests dropped from 966 to 23 while preserving full VIO coverage. A 60 ms publish budget is safer than 80 ms on this run.
+- Image-region depletion prior is implemented, but V1_03 evidence is negative so far. It should be kept as a separate sweep case, not enabled in the recommended setting.
 
 ## Next Tuning Step
 
 The next useful change is not to further loosen candidate acceptance. It is to make the low-frequency requests more selective and more valuable:
 
-1. Add a spatial prior from active/lost track distribution so LightGlue is requested only in genuinely depleted image regions.
-2. Add IMU-predicted flow consistency before ONNX publishing, not only after candidates arrive in `FeatureTracker`.
-3. Rerun V1_03 and the synthetic blur/exposure/frame-skip bags with the cooldown + budget policy.
+1. Add IMU-predicted flow consistency before ONNX publishing, not only after candidates arrive in `FeatureTracker`.
+2. Test depletion prior only on sequences where track loss is visibly spatially localized; V1_03 does not justify enabling it by default.
+3. Rerun the synthetic blur/exposure/frame-skip bags with the cooldown + budget policy and depletion prior as a separate ablation.

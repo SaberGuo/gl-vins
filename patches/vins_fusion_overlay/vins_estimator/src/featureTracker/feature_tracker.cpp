@@ -262,7 +262,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                     recovery_candidate_time = -1.0;
                     recovery_candidates.clear();
                 }
-                recovery_request_callback(cur_time, lost_prev_pts, lost_ids, lost_track_cnt);
+                recovery_request_callback(cur_time, lost_prev_pts, lost_ids, lost_track_cnt, active_prev_pts);
                 std::unique_lock<std::mutex> lock(recovery_mutex);
                 recovery_condition.wait_for(lock,
                                              std::chrono::milliseconds(static_cast<int>(recovery_request_timeout_ms)),
@@ -728,7 +728,8 @@ void FeatureTracker::configureRecoveryGeometry(double max_flow_error, int min_fl
 void FeatureTracker::setRecoveryRequestCallback(std::function<void(double,
                                                                    const vector<cv::Point2f> &,
                                                                    const vector<int> &,
-                                                                   const vector<int> &)> callback)
+                                                                   const vector<int> &,
+                                                                   const vector<cv::Point2f> &)> callback)
 {
     recovery_request_callback = callback;
 }

@@ -60,7 +60,8 @@ class Estimator
     void setRecoveryRequestCallback(std::function<void(double,
                                                        const vector<cv::Point2f> &,
                                                        const vector<int> &,
-                                                       const vector<int> &)> callback);
+                                                       const vector<int> &,
+                                                       const vector<cv::Point2f> &)> callback);
     void inputRecoveryCandidates(double t, const vector<RecoveryCandidate> &candidates);
     void processIMU(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity);
     void processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header);

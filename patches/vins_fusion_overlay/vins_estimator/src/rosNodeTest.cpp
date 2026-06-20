@@ -212,7 +212,8 @@ void recovery_candidate_callback(const sensor_msgs::PointCloudConstPtr &candidat
 void publish_recovery_request(double t,
                               const vector<cv::Point2f> &lost_prev_pts,
                               const vector<int> &lost_ids,
-                              const vector<int> &lost_track_cnt)
+                              const vector<int> &lost_track_cnt,
+                              const vector<cv::Point2f> &active_prev_pts)
 {
     if (!pub_recovery_request)
         return;
@@ -235,6 +236,16 @@ void publish_recovery_request(double t,
         request_msg.points.push_back(p);
         id_channel.values.push_back(i < lost_ids.size() ? lost_ids[i] : -1);
         track_cnt_channel.values.push_back(i < lost_track_cnt.size() ? lost_track_cnt[i] : 0);
+    }
+    for (const auto &active_pt : active_prev_pts)
+    {
+        geometry_msgs::Point32 p;
+        p.x = active_pt.x;
+        p.y = active_pt.y;
+        p.z = 1.0f;
+        request_msg.points.push_back(p);
+        id_channel.values.push_back(-1);
+        track_cnt_channel.values.push_back(0);
     }
     request_msg.channels.push_back(id_channel);
     request_msg.channels.push_back(track_cnt_channel);

@@ -64,6 +64,11 @@ public:
         pnh.param<double>("request_distance_penalty", request_distance_penalty_, 0.03);
         pnh.param<double>("image_cache_sec", image_cache_sec_, 5.0);
         pnh.param<double>("max_inference_ms", max_inference_ms_, 0.0);
+        pnh.param<int>("depletion_grid_cols", depletion_grid_cols_, 0);
+        pnh.param<int>("depletion_grid_rows", depletion_grid_rows_, 0);
+        pnh.param<int>("depletion_min_lost", depletion_min_lost_, 0);
+        pnh.param<double>("depletion_min_lost_active_ratio", depletion_min_lost_active_ratio_, 0.0);
+        pnh.param<double>("depletion_rank_bonus", depletion_rank_bonus_, 0.0);
 
         publish_every_n_ = std::max(1, publish_every_n_);
         fake_grid_step_ = std::max(2, fake_grid_step_);
@@ -71,6 +76,11 @@ public:
         model_width_ = std::max(0, model_width_);
         model_height_ = std::max(0, model_height_);
         max_inference_ms_ = std::max(0.0, max_inference_ms_);
+        depletion_grid_cols_ = std::max(0, depletion_grid_cols_);
+        depletion_grid_rows_ = std::max(0, depletion_grid_rows_);
+        depletion_min_lost_ = std::max(0, depletion_min_lost_);
+        depletion_min_lost_active_ratio_ = std::max(0.0, depletion_min_lost_active_ratio_);
+        depletion_rank_bonus_ = std::max(0.0, depletion_rank_bonus_);
 
         pub_ = nh.advertise<sensor_msgs::PointCloud>(output_topic_, 50);
         sub_ = nh.subscribe(image_topic_, 50, &LightGlueRecoveryCandidateNode::imageCallback, this);
@@ -85,6 +95,9 @@ public:
                  request_only_ ? 1 : 0, request_prev_radius_, request_time_tolerance_);
         ROS_WARN("lightglue_recovery_candidate_node max_inference_ms=%.1f image_cache_sec=%.1f",
                  max_inference_ms_, image_cache_sec_);
+        ROS_WARN("lightglue_recovery_candidate_node depletion grid=%dx%d min_lost=%d min_ratio=%.2f bonus=%.2f",
+                 depletion_grid_cols_, depletion_grid_rows_, depletion_min_lost_,
+                 depletion_min_lost_active_ratio_, depletion_rank_bonus_);
 
         if (backend_ == "onnx")
         {
@@ -273,10 +286,86 @@ private:
         double rank = 0.0;
     };
 
+    struct DepletionPrior
+    {
+        bool enabled = false;
+        int cols = 0;
+        int rows = 0;
+        int image_cols = 0;
+        int image_rows = 0;
+        std::vector<int> lost_counts;
+        std::vector<int> active_counts;
+    };
+
+    int depletionCellIndex(const DepletionPrior &prior, const cv::Point2f &pt) const
+    {
+        if (!prior.enabled || prior.image_cols <= 0 || prior.image_rows <= 0)
+            return -1;
+        int cx = static_cast<int>(pt.x / static_cast<double>(prior.image_cols) * prior.cols);
+        int cy = static_cast<int>(pt.y / static_cast<double>(prior.image_rows) * prior.rows);
+        cx = std::max(0, std::min(prior.cols - 1, cx));
+        cy = std::max(0, std::min(prior.rows - 1, cy));
+        return cy * prior.cols + cx;
+    }
+
+    DepletionPrior buildDepletionPrior(const std::vector<cv::Point2f> &lost_prev_pts,
+                                       const std::vector<cv::Point2f> &active_prev_pts,
+                                       const cv::Mat &prev_img) const
+    {
+        DepletionPrior prior;
+        prior.enabled = depletion_grid_cols_ > 0 &&
+                        depletion_grid_rows_ > 0 &&
+                        (depletion_min_lost_ > 0 ||
+                         depletion_min_lost_active_ratio_ > 0.0 ||
+                         depletion_rank_bonus_ > 0.0);
+        if (!prior.enabled)
+            return prior;
+        prior.cols = depletion_grid_cols_;
+        prior.rows = depletion_grid_rows_;
+        prior.image_cols = prev_img.cols;
+        prior.image_rows = prev_img.rows;
+        prior.lost_counts.assign(static_cast<size_t>(prior.cols * prior.rows), 0);
+        prior.active_counts.assign(static_cast<size_t>(prior.cols * prior.rows), 0);
+
+        for (const auto &pt : lost_prev_pts)
+        {
+            int idx = depletionCellIndex(prior, pt);
+            if (idx >= 0)
+                prior.lost_counts[static_cast<size_t>(idx)]++;
+        }
+        for (const auto &pt : active_prev_pts)
+        {
+            int idx = depletionCellIndex(prior, pt);
+            if (idx >= 0)
+                prior.active_counts[static_cast<size_t>(idx)]++;
+        }
+        return prior;
+    }
+
+    bool scoreDepletionPrior(const DepletionPrior &prior, const cv::Point2f &prev_pt, double &score) const
+    {
+        score = 0.0;
+        if (!prior.enabled)
+            return true;
+        int idx = depletionCellIndex(prior, prev_pt);
+        if (idx < 0)
+            return false;
+        int lost_count = prior.lost_counts[static_cast<size_t>(idx)];
+        int active_count = prior.active_counts[static_cast<size_t>(idx)];
+        double lost_active_ratio = static_cast<double>(lost_count) / (static_cast<double>(active_count) + 1.0);
+        if (lost_count < depletion_min_lost_)
+            return false;
+        if (lost_active_ratio < depletion_min_lost_active_ratio_)
+            return false;
+        score = lost_active_ratio;
+        return true;
+    }
+
     void publishOnnxMatches(const std_msgs::Header &header,
                             const cv::Mat &prev_img,
                             const cv::Mat &cur_img,
-                            const std::vector<cv::Point2f> &lost_prev_pts = std::vector<cv::Point2f>())
+                            const std::vector<cv::Point2f> &lost_prev_pts = std::vector<cv::Point2f>(),
+                            const std::vector<cv::Point2f> &active_prev_pts = std::vector<cv::Point2f>())
     {
         if (!ort_session_)
             return;
@@ -343,6 +432,7 @@ private:
 
             std::vector<CandidateRow> rows;
             rows.reserve(static_cast<size_t>(m_count));
+            DepletionPrior depletion_prior = buildDepletionPrior(lost_prev_pts, active_prev_pts, prev_img);
 
             for (int64_t i = 0; i < m_count; i++)
             {
@@ -403,6 +493,10 @@ private:
                         continue;
                     rank = static_cast<double>(s) - request_distance_penalty_ * best_d;
                 }
+                double depletion_score = 0.0;
+                if (!scoreDepletionPrior(depletion_prior, cv::Point2f(pu, pv), depletion_score))
+                    continue;
+                rank += depletion_rank_bonus_ * depletion_score;
 
                 CandidateRow row;
                 row.prev_pt = cv::Point2f(pu, pv);
@@ -441,8 +535,9 @@ private:
             msg.channels.push_back(prev_v);
             msg.channels.push_back(score);
             pub_.publish(msg);
-            ROS_WARN_THROTTLE(2.0, "published %lu ONNX recovery candidates from %lld raw matches at %.6f, inference %.1f ms, request_lost=%lu",
-                              msg.points.size(), static_cast<long long>(m_count), header.stamp.toSec(), dt_ms, lost_prev_pts.size());
+            ROS_WARN_THROTTLE(2.0, "published %lu ONNX recovery candidates from %lld raw matches at %.6f, inference %.1f ms, request_lost=%lu request_active=%lu depletion=%d",
+                              msg.points.size(), static_cast<long long>(m_count), header.stamp.toSec(), dt_ms,
+                              lost_prev_pts.size(), active_prev_pts.size(), depletion_prior.enabled ? 1 : 0);
         }
         catch (const Ort::Exception &e)
         {
@@ -531,9 +626,15 @@ private:
             return;
 
         std::vector<cv::Point2f> lost_prev_pts;
+        std::vector<cv::Point2f> active_prev_pts;
         lost_prev_pts.reserve(request_msg->points.size());
         for (const auto &p : request_msg->points)
-            lost_prev_pts.push_back(cv::Point2f(p.x, p.y));
+        {
+            if (p.z > 0.5f)
+                active_prev_pts.push_back(cv::Point2f(p.x, p.y));
+            else
+                lost_prev_pts.push_back(cv::Point2f(p.x, p.y));
+        }
         if (lost_prev_pts.empty())
         {
             inference_busy_ = false;
@@ -548,7 +649,7 @@ private:
             inference_busy_ = false;
             return;
         }
-        publishOnnxMatches(request_msg->header, prev_img, cur_img, lost_prev_pts);
+        publishOnnxMatches(request_msg->header, prev_img, cur_img, lost_prev_pts, active_prev_pts);
         inference_busy_ = false;
 #endif
     }
@@ -579,6 +680,11 @@ private:
     double request_distance_penalty_ = 0.03;
     double image_cache_sec_ = 5.0;
     double max_inference_ms_ = 0.0;
+    int depletion_grid_cols_ = 0;
+    int depletion_grid_rows_ = 0;
+    int depletion_min_lost_ = 0;
+    double depletion_min_lost_active_ratio_ = 0.0;
+    double depletion_rank_bonus_ = 0.0;
     cv::Mat prev_img_;
     std::mutex cache_mutex_;
     std::map<double, cv::Mat> image_cache_;

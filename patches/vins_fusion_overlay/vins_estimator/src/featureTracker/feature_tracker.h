@@ -74,7 +74,8 @@ public:
     void setRecoveryRequestCallback(std::function<void(double,
                                                        const vector<cv::Point2f> &,
                                                        const vector<int> &,
-                                                       const vector<int> &)> callback);
+                                                       const vector<int> &,
+                                                       const vector<cv::Point2f> &)> callback);
     void setRecoveryCandidates(double timestamp, const vector<RecoveryCandidate> &candidates);
     int applyRecoveryCandidates(const vector<cv::Point2f> &raw_prev_pts,
                                 const vector<int> &raw_ids,
@@ -133,5 +134,9 @@ public:
     vector<RecoveryCandidate> recovery_candidates;
     std::mutex recovery_mutex;
     std::condition_variable recovery_condition;
-    std::function<void(double, const vector<cv::Point2f> &, const vector<int> &, const vector<int> &)> recovery_request_callback;
+    std::function<void(double,
+                       const vector<cv::Point2f> &,
+                       const vector<int> &,
+                       const vector<int> &,
+                       const vector<cv::Point2f> &)> recovery_request_callback;
 };

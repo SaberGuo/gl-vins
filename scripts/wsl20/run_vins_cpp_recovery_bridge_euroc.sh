@@ -48,6 +48,11 @@ REQUEST_PREV_RADIUS="${REQUEST_PREV_RADIUS:-12.0}"
 REQUEST_DISTANCE_PENALTY="${REQUEST_DISTANCE_PENALTY:-0.03}"
 REQUEST_TIME_TOLERANCE="${REQUEST_TIME_TOLERANCE:-0.02}"
 MAX_INFERENCE_MS="${MAX_INFERENCE_MS:-0}"
+DEPLETION_GRID_COLS="${DEPLETION_GRID_COLS:-0}"
+DEPLETION_GRID_ROWS="${DEPLETION_GRID_ROWS:-0}"
+DEPLETION_MIN_LOST="${DEPLETION_MIN_LOST:-0}"
+DEPLETION_MIN_LOST_ACTIVE_RATIO="${DEPLETION_MIN_LOST_ACTIVE_RATIO:-0}"
+DEPLETION_RANK_BONUS="${DEPLETION_RANK_BONUS:-0}"
 
 if [ -d "$ONNXRUNTIME_ROOT/lib" ]; then
   export LD_LIBRARY_PATH="$ONNXRUNTIME_ROOT/lib:${LD_LIBRARY_PATH:-}"
@@ -137,6 +142,11 @@ rosrun vins lightglue_recovery_candidate_node \
   _request_distance_penalty:="$REQUEST_DISTANCE_PENALTY" \
   _request_time_tolerance:="$REQUEST_TIME_TOLERANCE" \
   _max_inference_ms:="$MAX_INFERENCE_MS" \
+  _depletion_grid_cols:="$DEPLETION_GRID_COLS" \
+  _depletion_grid_rows:="$DEPLETION_GRID_ROWS" \
+  _depletion_min_lost:="$DEPLETION_MIN_LOST" \
+  _depletion_min_lost_active_ratio:="$DEPLETION_MIN_LOST_ACTIVE_RATIO" \
+  _depletion_rank_bonus:="$DEPLETION_RANK_BONUS" \
   >"$LOG_DIR/lightglue_recovery_candidate_node.log" 2>&1 &
 sleep 2
 

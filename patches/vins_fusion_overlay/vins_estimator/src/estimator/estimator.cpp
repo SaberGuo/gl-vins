@@ -224,7 +224,8 @@ void Estimator::configureRecoveryGeometry(double max_flow_error, int min_flow_tr
 void Estimator::setRecoveryRequestCallback(std::function<void(double,
                                                               const vector<cv::Point2f> &,
                                                               const vector<int> &,
-                                                              const vector<int> &)> callback)
+                                                              const vector<int> &,
+                                                              const vector<cv::Point2f> &)> callback)
 {
     featureTracker.setRecoveryRequestCallback(callback);
 }
