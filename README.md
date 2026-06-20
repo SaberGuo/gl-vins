@@ -155,6 +155,8 @@ RECOVERY_REQUEST_BRIGHTNESS_DELTA=30
 
 详细计划见 [docs/degradation_aware_recovery_plan.md](docs/degradation_aware_recovery_plan.md)，sweep 脚本见 [scripts/wsl20/run_degradation_recovery_sweep.sh](scripts/wsl20/run_degradation_recovery_sweep.sh)。
 
+首轮 60 秒合成退化测试见 [docs/results_synthetic_degradation_mh01.md](docs/results_synthetic_degradation_mh01.md)。当前结论：退化触发有效，frame-skip 高速 proxy 略有改善；blur/exposure 下接纳过多导致 RMSE/P95 略变差，下一步需要几何 gate 和更保守参数。
+
 ## VINS-Fusion 联调路线
 
 推荐保留 VINS-Fusion 后端和原始 C++ frontend 主路径不动：
@@ -188,6 +190,8 @@ RECOVERY_REQUEST_BRIGHTNESS_DELTA=30
 - [x] 把 ONNX recovery 从固定频率发布改为 `FeatureTracker` health-triggered request，并按 lost-track proximity 重排候选。
 - [ ] 在更难 EuRoC 序列上重跑 request-driven ONNX recovery，并加入几何一致性过滤/更保守接纳策略。
 - [x] 为高速运动、运动模糊和光强突变加入退化感知 request trigger 与实验计划。
+- [x] 基于 `MH_01_easy` 生成 60 秒 motion blur / exposure jump / frame-skip 合成退化 bag 并完成首轮 baseline 对比。
 - [ ] 基于 `run_degradation_recovery_sweep.sh` 跑 MH_04/MH_05/V1_03/V2_03 并调参。
+- [ ] 为 blur/exposure recovery 加入几何一致性 gate，降低错误 recovery 接纳。
 - [ ] 加入 ORB/KLT baseline 的相同统计导出。
 - [ ] 加入 TUM-VI fisheye undistortion/camera model 处理。
